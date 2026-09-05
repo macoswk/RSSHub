@@ -1,8 +1,8 @@
-import cache from '@/utils/cache';
-import got from '@/utils/got';
 import { load } from 'cheerio';
 
 import { config } from '@/config';
+import cache from '@/utils/cache';
+import got from '@/utils/got';
 
 async function parse(url, cookie = '') {
     const { data } = await got(url, {
@@ -21,7 +21,7 @@ async function parse(url, cookie = '') {
     article.find('header').remove();
 
     // get and remove title
-    const title = article.find('h1').first();
+    const title = article.find('h1');
     const titleText = title.text();
     title.remove(); // remove title from html
 
@@ -46,7 +46,7 @@ async function parse(url, cookie = '') {
     };
 }
 
-export default function (ctx, url) {
+export default function parseArticle(ctx, url) {
     return cache.tryGet(`medium:article:${url}`, async () => {
         const { title, author, publishedTime, html } = await parse(url, config.medium.articleCookie);
 

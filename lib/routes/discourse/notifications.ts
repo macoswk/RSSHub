@@ -1,7 +1,9 @@
-import { Route } from '@/types';
+import { config } from '@/config';
+import type { Route } from '@/types';
 import cache from '@/utils/cache';
+import ofetch from '@/utils/ofetch';
+
 import { getConfig } from './utils';
-import got from '@/utils/got';
 
 export const route: Route = {
     path: '/:configId/notifications/:fulltext?',
@@ -22,23 +24,24 @@ export const route: Route = {
         supportScihub: false,
     },
     name: 'Notifications',
-    maintainers: [],
+    maintainers: ['dzx-dzx'],
     handler,
-    description: `:::warning
+    description: `::: warning
 If you opt to enable \`fulltext\` feature, consider adding \`limit\` parameter to your query to avoid sending too many request.
 :::`,
 };
 
 async function handler(ctx) {
-    const { link, key } = getConfig(ctx);
+    const discourseConfig: unknown = getConfig(ctx);
+    const { link, key } = discourseConfig as { link: string; key: string };
 
-    const response = await got(`${link}/notifications.json`, { headers: { 'User-Api-Key': key } }).json();
+    const response = await ofetch(`${link}/notifications.json`, { headers: { 'User-Api-Key': key } });
     let items = response.notifications.slice(0, ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit')) : 10).map((e) => ({
         title: e.fancy_title ?? e.data.badge_name,
         link: `${link}/${Object.hasOwn(e.data, 'badge_id') ? `badges/${e.data.badge_id}/${e.data.badge_slug}?username=${e.data.username}` : `t/topic/${e.topic_id}/${e.post_number}`}`,
         pubDate: new Date(e.created_at),
         author: e.data.display_username ?? e.data.username,
-        category: `notification_type:${e.notification_type}`,
+        category: [`notification_type:${e.notification_type}`, `read:${e.read}`, `high_priority:${e.high_priority}`],
         original_post_id: e.data.original_post_id,
     }));
 
@@ -48,20 +51,20 @@ async function handler(ctx) {
                 if (e.original_post_id) {
                     const post_link = `${link}/posts/${e.original_post_id}.json`;
                     return cache.tryGet(post_link, async () => {
-                        const { cooked } = await got(post_link, { headers: { 'User-Api-Key': key } }).json();
+                        const { cooked } = await ofetch(post_link, { headers: { 'User-Api-Key': key } });
                         return { ...e, description: cooked };
                     });
-                } else {
-                    return e;
                 }
+                return e;
             })
         );
     }
 
-    const { about } = await got(`${link}/about.json`, { headers: { 'User-Api-Key': key } }).json();
+    const { about } = await cache.tryGet(link, async () => await ofetch(`${link}/about.json`, { headers: { 'User-Api-Key': key } }), config.cache.routeExpire, false);
     return {
         title: `${about.title} - Notifications`,
         description: about.description,
         item: items,
+        allowEmpty: true,
     };
 }

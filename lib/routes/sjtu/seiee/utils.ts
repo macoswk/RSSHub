@@ -1,11 +1,12 @@
+import { load } from 'cheerio';
+
 import cache from '@/utils/cache';
 import got from '@/utils/got';
-import { load } from 'cheerio';
 import { parseDate } from '@/utils/parse-date';
 
 const host = 'https://bjwb.seiee.sjtu.edu.cn';
 
-export default function (meta, extract) {
+export default function workerFactory(meta, extract) {
     return async (ctx) => {
         const { title, local, author } = meta(ctx);
 

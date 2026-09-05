@@ -1,9 +1,11 @@
-import { Route } from '@/types';
-import { originUrl, getArticleDesc } from './utils';
-import cache from '@/utils/cache';
-import got from '@/utils/got';
 import { load } from 'cheerio';
+
+import type { DataItem, Route } from '@/types';
+import cache from '@/utils/cache';
+import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
+
+import { getArticleDesc, getOriginUrl } from './utils';
 
 export const route: Route = {
     path: '/weekly',
@@ -11,27 +13,30 @@ export const route: Route = {
     example: '/jpxgmn/weekly',
     radar: [
         {
-            source: ['www.12356782.xyz/'],
+            source: ['mei5.vip/'],
             target: '/weekly',
         },
     ],
     name: '本周热门',
     maintainers: ['Urabartin'],
     handler,
+    features: {
+        nsfw: true,
+    },
 };
 
 async function handler() {
-    const response = await got(originUrl);
+    const response = await ofetch.raw(await getOriginUrl());
     const baseUrl = new URL(response.url).origin;
-    const $ = load(response.data);
+    const $ = load(response._data);
     const items = $('aside div:nth-child(2) li')
         .toArray()
         .map((item) => {
             const fullTitle = $(item).find('a').attr('title') || '';
             const result = fullTitle.match(/([^.]+)\.\D+([\d-]+)/);
-            const ret = {
+            const ret: DataItem = {
                 title: fullTitle,
-                link: new URL($(item).find('a').attr('href'), baseUrl).href,
+                link: new URL($(item).find('a').attr('href')!, baseUrl).href,
             };
             if (result !== null) {
                 ret.title = result[1];
@@ -40,11 +45,11 @@ async function handler() {
             return ret;
         });
     return {
-        title: `极品性感美女 - 本周热门推荐`,
+        title: '极品性感美女 - 本周热门推荐',
         link: response.url,
         item: await Promise.all(
             items.map((item) =>
-                cache.tryGet(item.link, async () => {
+                cache.tryGet(item.link!, async () => {
                     item.description = await getArticleDesc(item.link);
                     return item;
                 })

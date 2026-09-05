@@ -1,7 +1,10 @@
-import got from '@/utils/got';
 import { load } from 'cheerio';
-import { parseDate } from '@/utils/parse-date';
+
+import cache from '@/utils/cache';
+import got from '@/utils/got';
 import logger from '@/utils/logger';
+import { parseDate } from '@/utils/parse-date';
+
 const baseUrl = 'https://today.line.me';
 
 const parseList = (items) =>
@@ -13,11 +16,11 @@ const parseList = (items) =>
         category: item.categoryName,
     }));
 
-const parseItems = (list, tryGet) =>
+const parseItems = (list) =>
     Promise.all(
         list.map((item) =>
-            tryGet(item.link, async () => {
-                const edition = item.link.match(/today\.line\.me\/(\w+?)\/v2\/.*$/)[1];
+            cache.tryGet(item.link, async () => {
+                const edition = item.link.match(/today\.line\.me\/(\w+)\/v[23]\/.*$/)[1];
                 let data;
                 try {
                     const response = await got(`${baseUrl}/webapi/portal/page/setting/article`, {
@@ -29,8 +32,9 @@ const parseItems = (list, tryGet) =>
                     });
                     data = response.data;
                 } catch (error) {
-                    if ((error.name === 'HTTPError' || error.name === 'FetchError') && error.response.statusCode === 404) {
-                        logger.error(`Error parsing article ${item.link}: ${error.message}`);
+                    const requestError = error as Error & { response: { statusCode: number } };
+                    if ((requestError.name === 'HTTPError' || requestError.name === 'FetchError') && requestError.response.statusCode === 404) {
+                        logger.error(`Error parsing article ${item.link}: ${requestError.message}`);
                         return item;
                     }
                     throw error;
@@ -52,4 +56,4 @@ const parseItems = (list, tryGet) =>
         )
     );
 
-export { baseUrl, parseList, parseItems };
+export { baseUrl, parseItems, parseList };

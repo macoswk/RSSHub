@@ -1,6 +1,8 @@
-import { Route } from '@/types';
+import InvalidParameterError from '@/errors/types/invalid-parameter';
+import type { Route } from '@/types';
 import got from '@/utils/got';
-import { parseList, parseItem } from './utils';
+
+import { parseItem, parseList } from './utils';
 
 const channelMap = {
     calendar: 'pac',
@@ -24,14 +26,14 @@ export const route: Route = {
     handler,
     url: 'guokr.com/',
     description: `| 物种日历 | 吃货研究所 | 美丽也是技术活 |
-  | -------- | ---------- | -------------- |
-  | calendar | institute  | beauty         |`,
+| -------- | ---------- | -------------- |
+| calendar | institute  | beauty         |`,
 };
 
 async function handler(ctx) {
     const channel = channelMap[ctx.req.param('channel')] ?? ctx.req.param('channel');
 
-    const { data: response } = await got(`https://www.guokr.com/apis/minisite/article.json`, {
+    const { data: response } = await got('https://www.guokr.com/apis/minisite/article.json', {
         searchParams: {
             retrieve_type: 'by_wx',
             channel_key: channel,
@@ -42,7 +44,7 @@ async function handler(ctx) {
     const result = parseList(response.result);
 
     if (result.length === 0) {
-        throw new Error('Unknown channel');
+        throw new InvalidParameterError('Unknown channel');
     }
 
     const channelName = result[0].channels[0].name;

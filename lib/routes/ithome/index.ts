@@ -1,7 +1,9 @@
-import { Route } from '@/types';
+import { load } from 'cheerio';
+
+import InvalidParameterError from '@/errors/types/invalid-parameter';
+import type { DataItem, Route } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
-import { load } from 'cheerio';
 
 const get_url = (caty) => `https://${caty}.ithome.com/`;
 
@@ -52,14 +54,14 @@ export const route: Route = {
     maintainers: ['luyuhuang'],
     handler,
     description: `| it      | soft     | win10      | win11      | iphone      | ipad      | android      | digi     | next     |
-  | ------- | -------- | ---------- | ---------- | ----------- | --------- | ------------ | -------- | -------- |
-  | IT 资讯 | 软件之家 | win10 之家 | win11 之家 | iphone 之家 | ipad 之家 | android 之家 | 数码之家 | 智能时代 |`,
+| ------- | -------- | ---------- | ---------- | ----------- | --------- | ------------ | -------- | -------- |
+| IT 资讯 | 软件之家 | win10 之家 | win11 之家 | iphone 之家 | ipad 之家 | android 之家 | 数码之家 | 智能时代 |`,
 };
 
 async function handler(ctx) {
     const cfg = config[ctx.req.param('caty')];
     if (!cfg) {
-        throw new Error('Bad category. See <a href="https://docs.rsshub.app/routes/new-media#it-zhi-jia">https://docs.rsshub.app/routes/new-media#it-zhi-jia</a>');
+        throw new InvalidParameterError('Bad category. See <a href="https://docs.rsshub.app/routes/new-media#it-zhi-jia">https://docs.rsshub.app/routes/new-media#it-zhi-jia</a>');
     }
 
     const current_url = get_url(ctx.req.param('caty'));
@@ -71,26 +73,26 @@ async function handler(ctx) {
     const $ = load(response.data);
     const list = $('#list > div.fl > ul > li > div > h2 > a')
         .slice(0, 10)
-        .map((_, item) => {
-            item = $(item);
+        .toArray()
+        .map((item): DataItem => {
+            const $item = $(item);
             return {
-                title: item.text(),
-                link: item.attr('href'),
+                title: $item.text(),
+                link: $item.attr('href'),
             };
-        })
-        .get();
+        });
 
     const items = await Promise.all(
         list.map((item) =>
-            cache.tryGet(item.link, async () => {
+            cache.tryGet(item.link!, async () => {
                 const res = await got({ method: 'get', url: item.link });
                 const content = load(res.data);
                 const post = content('#paragraph');
                 post.find('img[data-original]').each((_, ele) => {
-                    ele = $(ele);
-                    ele.attr('src', ele.attr('data-original'));
-                    ele.removeAttr('class');
-                    ele.removeAttr('data-original');
+                    const $ele = $(ele);
+                    $ele.attr('src', $ele.attr('data-original'));
+                    $ele.removeAttr('class');
+                    $ele.removeAttr('data-original');
                 });
                 item.description = post.html();
                 item.pubDate = new Date(content('#pubtime_baidu').text() + ' GMT+8').toUTCString();

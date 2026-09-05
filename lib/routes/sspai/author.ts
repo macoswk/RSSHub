@@ -1,4 +1,5 @@
-import { Route } from '@/types';
+import InvalidParameterError from '@/errors/types/invalid-parameter';
+import type { Route } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
 import { parseDate } from '@/utils/parse-date';
@@ -13,7 +14,7 @@ async function getUserId(slug) {
     });
 
     if (response.data.error !== 0) {
-        throw new Error('User Not Found');
+        throw new InvalidParameterError('User Not Found');
     }
 
     return response.data.data.id;
@@ -38,7 +39,7 @@ export const route: Route = {
         },
     ],
     name: '作者',
-    maintainers: ['SunShinenny', 'hoilc'],
+    maintainers: ['sunshinenny', 'hoilc'],
     handler,
 };
 
@@ -54,13 +55,19 @@ async function handler(ctx) {
     const author_nickname = data[0].author.nickname;
     const items = await Promise.all(
         data.map((item) => {
-            const link = `https://sspai.com/api/v1/article/info/get?id=${item.id}&view=second`;
+            const link = `https://sspai.com/api/v1/article/info/get?id=${item.id}&view=second&support_webp=true`;
             let description = '';
 
             const key = `sspai: ${item.id}`;
             return cache.tryGet(key, async () => {
                 const response = await got(link);
-                description = response.data.data.body;
+                // description = response.data.data.body;
+                const articleData = response.data.data;
+                const banner = articleData.promote_image;
+                if (banner) {
+                    description = `<img src="${banner}" alt="Article Cover Image" style="display: block; margin: 0 auto;"><br>`;
+                }
+                description += articleData.body;
 
                 return {
                     title: item.title.trim(),

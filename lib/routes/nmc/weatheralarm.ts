@@ -1,9 +1,10 @@
-import { Route } from '@/types';
+import { load } from 'cheerio';
+
+import type { Route } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
 import { parseDate } from '@/utils/parse-date';
 import timezone from '@/utils/timezone';
-import * as cheerio from 'cheerio';
 
 export const route: Route = {
     path: '/weatheralarm/:province?',
@@ -31,8 +32,8 @@ export const route: Route = {
 };
 
 async function handler(ctx) {
-    const { province } = ctx.req.param();
-    const alarmInfoURL = `http://www.nmc.cn/rest/findAlarm`;
+    const { province = '' } = ctx.req.param();
+    const alarmInfoURL = 'http://www.nmc.cn/rest/findAlarm';
     const { data: response } = await got(alarmInfoURL, {
         searchParams: {
             pageNo: 1,
@@ -42,7 +43,6 @@ async function handler(ctx) {
             province,
         },
     });
-
     const list = response.data.page.list.map((item) => ({
         title: item.title,
         link: `http://www.nmc.cn${item.url}`,
@@ -53,7 +53,7 @@ async function handler(ctx) {
         list.map((item) =>
             cache.tryGet(item.link, async () => {
                 const { data: response } = await got(item.link);
-                const $ = cheerio.load(response);
+                const $ = load(response);
 
                 item.description =
                     $('#icon').html() +
@@ -70,6 +70,7 @@ async function handler(ctx) {
     return {
         title: '中央气象台全国气象预警',
         link: 'http://www.nmc.cn/publish/alarm.html',
+        allowEmpty: true,
         item: items,
     };
 }

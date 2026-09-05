@@ -1,9 +1,13 @@
-import { Route } from '@/types';
-import cache from '@/utils/cache';
 import { CookieJar } from 'tough-cookie';
+
 import { config } from '@/config';
+import ConfigNotFoundError from '@/errors/types/config-not-found';
+import InvalidParameterError from '@/errors/types/invalid-parameter';
+import type { Route } from '@/types';
+import cache from '@/utils/cache';
+
 import { renderItems } from '../common-utils';
-import { baseUrl, COOKIE_URL, checkLogin, getUserInfo, getUserFeedItems, getTagsFeedItems, getLoggedOutTagsFeedItems, renderGuestItems } from './utils';
+import { baseUrl, checkLogin, COOKIE_URL, getTagsFeed, getUserFeedItems, getUserInfo, renderGuestItems } from './utils';
 
 export const route: Route = {
     path: '/2/:category/:key',
@@ -21,10 +25,9 @@ export const route: Route = {
     name: 'User Profile / Hashtag',
     maintainers: ['TonyRL'],
     handler,
-    description: `:::tip
+    description: `::: tip
 You may need to setup cookie for a less restrictive rate limit and private profiles.
 :::
-
 
 | User timeline | Hashtag |
 | ------------- | ------- |
@@ -33,17 +36,17 @@ You may need to setup cookie for a less restrictive rate limit and private profi
 
 async function handler(ctx) {
     // if (!config.instagram || !config.instagram.cookie) {
-    //     throw Error('Instagram RSS is disabled due to the lack of <a href="https://docs.rsshub.app/deploy/config#route-specific-configurations">relevant config</a>');
+    //     throw new ConfigNotFoundError('Instagram RSS is disabled due to the lack of <a href="https://docs.rsshub.app/deploy/config#route-specific-configurations">relevant config</a>');
     // }
     const availableCategories = ['user', 'tags'];
     const { category, key } = ctx.req.param();
     const { cookie } = config.instagram;
     if (!availableCategories.includes(category)) {
-        throw new Error('Such feed is not supported.');
+        throw new InvalidParameterError('Such feed is not supported.');
     }
 
-    let cookieJar = await cache.get('instagram:cookieJar');
-    const wwwClaimV2 = await cache.get('instagram:wwwClaimV2');
+    let cookieJar: any = await cache.get('instagram:cookieJar');
+    // const wwwClaimV2 = await cache.get('instagram:wwwClaimV2');
     const cacheMiss = !cookieJar;
 
     if (cacheMiss) {
@@ -57,15 +60,15 @@ async function handler(ctx) {
         cookieJar = CookieJar.fromJSON(cookieJar);
     }
 
-    if (!wwwClaimV2 && cookie && !(await checkLogin(cookieJar, cache))) {
-        throw new Error('Invalid cookie');
+    if (/* !wwwClaimV2 &&*/ cookie && !(await checkLogin(cookieJar))) {
+        throw new ConfigNotFoundError('Invalid cookie');
     }
 
     let feedTitle, feedLink, feedDescription, feedLogo;
     let items;
     switch (category) {
         case 'user': {
-            const userInfo = await getUserInfo(key, cookieJar, cache);
+            const userInfo = await getUserInfo(key, cookieJar);
 
             // User feed metadata
             const biography = userInfo.biography;
@@ -78,22 +81,26 @@ async function handler(ctx) {
             feedLogo = userInfo.profile_pic_url_hd ?? userInfo.hd_profile_pic_url_info?.url ?? userInfo.profile_pic_url;
             feedLink = `${baseUrl}/${username}`;
 
-            items = cookie ? await getUserFeedItems(id, username, cookieJar, cache) : [...userInfo.edge_felix_video_timeline.edges, ...userInfo.edge_owner_to_timeline_media.edges];
+            items = cookie ? await getUserFeedItems(id, username, cookieJar) : [...userInfo.edge_felix_video_timeline.edges, ...userInfo.edge_owner_to_timeline_media.edges];
 
             break;
         }
         case 'tags': {
+            if (!config.instagram || !config.instagram.cookie) {
+                throw new ConfigNotFoundError('Instagram RSS is disabled due to the lack of <a href="https://docs.rsshub.app/deploy/config#route-specific-configurations">relevant config</a>');
+            }
             const tag = key;
 
             feedTitle = `#${tag} - Instagram`;
-            feedLink = `${baseUrl}/explore/tags/${tag}`;
+            feedLink = `${baseUrl}/explore/search/keyword/?q=%23${tag}`;
 
-            if (cookie) {
-                items = await getTagsFeedItems(tag, 'recent', cookieJar, cache.tryGet);
-            } else {
-                const hashTag = await getLoggedOutTagsFeedItems(tag, cookieJar);
-                items = [...hashTag.edge_hashtag_to_media.edges, ...hashTag.edge_hashtag_to_top_posts.edges];
-            }
+            const feedData = await getTagsFeed(tag, cookieJar);
+
+            feedLogo = feedData.profile_pic_url;
+            items = feedData.top.sections.flatMap((section) =>
+                // either media or clips
+                (section.feed_type === 'media' ? section.layout_content.medias : [...section.layout_content.one_by_two_item.clips.items, ...section.layout_content.fill_items]).map((item) => item.media)
+            );
 
             break;
         }
