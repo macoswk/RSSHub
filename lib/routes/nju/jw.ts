@@ -1,4 +1,6 @@
-import { Route } from '@/types';
+import queryString from 'query-string';
+
+import type { DataItem, Route } from '@/types';
 import got from '@/utils/got';
 import { parseDate } from '@/utils/parse-date';
 import timezone from '@/utils/timezone';
@@ -25,8 +27,8 @@ export const route: Route = {
     maintainers: ['cqjjjzr'],
     handler,
     description: `| 公告通知 | 教学动态 |
-  | -------- | -------- |
-  | ggtz     | jxdt     |`,
+| -------- | -------- |
+| ggtz     | jxdt     |`,
 };
 
 async function handler(ctx) {
@@ -50,17 +52,18 @@ async function handler(ctx) {
     const { data } = await got({
         method: 'post',
         url: 'https://jw.nju.edu.cn/_wp3services/generalQuery?queryObj=articles',
-        form: {
+        body: queryString.stringify({
             siteId: 414,
             columnId: type_dict[type][0],
             pageIndex: 1,
             rows: 24, // 用大一点的值，因为前面太多置顶的
             orders: type_dict[type][2],
             returnInfos: type_dict[type][3],
-        },
+        }),
         headers: {
             Origin: 'https://jw.nju.edu.cn',
             Referer: 'https://jw.nju.edu.cn/main.htm',
+            'Content-Type': 'application/x-www-form-urlencoded',
         },
     });
 
@@ -71,10 +74,10 @@ async function handler(ctx) {
             data &&
             data.data &&
             data.data.map((item) => {
-                const ret = {
+                const ret: DataItem = {
                     title: item.title,
                     author: item.publisher,
-                    pubDate: timezone(parseDate(item.publishTime, 'YYYY-MM-DD HH:mm:ss'), +8),
+                    pubDate: timezone(parseDate(item.publishTime, 'YYYY-MM-DD HH:mm:ss'), 8),
                     link: item.url,
                 };
                 if (type === 'ggtz') {
