@@ -1,7 +1,9 @@
-import { Route } from '@/types';
+import { load } from 'cheerio';
+
+import InvalidParameterError from '@/errors/types/invalid-parameter';
+import type { Route } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
-import { load } from 'cheerio';
 import { parseDate } from '@/utils/parse-date';
 
 export const route: Route = {
@@ -21,8 +23,8 @@ export const route: Route = {
     maintainers: ['nczitzk'],
     handler,
     description: `| 浙江日报 | 钱江晚报 | 美术报 | 浙江老年报 | 浙江法制报 | 江南游报 |
-  | -------- | -------- | ------ | ---------- | ---------- | -------- |
-  | zjrb     | qjwb     | msb    | zjlnb      | zjfzb      | jnyb     |`,
+| -------- | -------- | ------ | ---------- | ---------- | -------- |
+| zjrb     | qjwb     | msb    | zjlnb      | zjfzb      | jnyb     |`,
 };
 
 async function handler(ctx) {
@@ -31,7 +33,7 @@ async function handler(ctx) {
 
     const allowedId = ['zjrb', 'qjwb', 'msb', 'zjlnb', 'zjfzb', 'jnyb'];
     if (!allowedId.includes(id)) {
-        throw new Error('id not allowed');
+        throw new InvalidParameterError('id not allowed');
     }
 
     const query = id === 'jnyb' ? 'map[name="PagePicMap"] area' : 'ul.main-ed-articlenav-list li a';
@@ -56,7 +58,7 @@ async function handler(ctx) {
 
     const $ = load(response.data);
 
-    let items = $(query)
+    let items: any[] = $(query)
         .toArray()
         .map((a) => `${currentUrl}/${$(a).attr('href')}`);
 
@@ -83,7 +85,7 @@ async function handler(ctx) {
 
     items = await Promise.all(
         items
-            .filter((a) => (id === 'jnyb' ? /\?div=1$/.test(a) : true))
+            .filter((a) => (id === 'jnyb' ? a.endsWith('?div=1') : true))
             .slice(0, limit)
             .map((link) =>
                 cache.tryGet(link, async () => {
@@ -101,7 +103,7 @@ async function handler(ctx) {
                     return {
                         title,
                         pubDate,
-                        link: link.split('?')[0],
+                        link: link.split('?', 1)[0],
                         description: content('.main-article-content').html(),
                     };
                 })

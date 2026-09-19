@@ -1,6 +1,8 @@
-import got from '@/utils/got';
 import { load } from 'cheerio';
+
 import { config } from '@/config';
+import cache from '@/utils/cache';
+import ofetch from '@/utils/ofetch';
 
 const baseUrl = 'https://500px.com.cn';
 
@@ -24,39 +26,39 @@ const headers = {
     'X-Tingyun-Id': `Fm3hXcTiLT8;r=${Date.now() % 1e8}`,
 };
 
-const getUserInfoFromUsername = (username, tryGet) =>
-    tryGet(`500px:user:${username}`, async () => {
-        const { data } = await got(`${baseUrl}/${username}`);
+const getUserInfoFromUsername = (username) =>
+    cache.tryGet(`500px:user:${username}`, async () => {
+        const data = await ofetch(`${baseUrl}/${username}`);
         const $ = load(data);
         return JSON.parse(
             $('script[type="text/javascript"]')
                 .text()
-                .match(/var cur_user = new Object\((.*?)\);/)[1]
+                .match(/var cur_user = new Object\((.*?)\);/)?.[1] || '{}'
         );
     });
 
-const getUserInfoFromId = (id, tryGet) =>
-    tryGet(`500px:user:indexInfo:${id}`, async () => {
-        const { data } = await got(`${baseUrl}/community/v2/user/indexInfo`, {
+const getUserInfoFromId = (id) =>
+    cache.tryGet(`500px:user:indexInfo:${id}`, async () => {
+        const data = await ofetch(`${baseUrl}/community/v2/user/indexInfo`, {
             headers: {
                 ...headers,
             },
-            searchParams: {
+            query: {
                 queriedUserId: id,
             },
         });
         return data.data;
     });
 
-const getUserWorks = (id, limit, tryGet) =>
-    tryGet(
+const getUserWorks = (id, limit) =>
+    cache.tryGet(
         `500px:user:profile:${id}`,
         async () => {
-            const { data } = await got(`${baseUrl}/community/v2/user/profile`, {
+            const data = await ofetch(`${baseUrl}/community/v2/user/profile`, {
                 headers: {
                     ...headers,
                 },
-                searchParams: {
+                query: {
                     resourceType: '0,2,4',
                     imgsize: 'p1,p2,p3,p4',
                     queriedUserId: id,
@@ -66,21 +68,21 @@ const getUserWorks = (id, limit, tryGet) =>
                     type: 'json',
                 },
             });
-            return data.data;
+            return data;
         },
         config.cache.routeExpire,
         false
     );
 
-const getTribeDetail = (id, tryGet) =>
-    tryGet(
+const getTribeDetail = (id) =>
+    cache.tryGet(
         `500px:tribeDetail:${id}`,
         async () => {
-            const { data } = await got(`${baseUrl}/community/tribe/tribeDetail`, {
+            const data = await ofetch(`${baseUrl}/community/tribe/tribeDetail`, {
                 headers: {
                     ...headers,
                 },
-                searchParams: {
+                query: {
                     tribeId: id,
                 },
             });
@@ -90,15 +92,15 @@ const getTribeDetail = (id, tryGet) =>
         false
     );
 
-const getTribeSets = (id, limit, tryGet) =>
-    tryGet(
+const getTribeSets = (id, limit) =>
+    cache.tryGet(
         `500px:tribeSets:${id}`,
         async () => {
-            const { data } = await got(`${baseUrl}/community/tribe/getTribeSetsV2`, {
+            const data = await ofetch(`${baseUrl}/community/tribe/getTribeSetsV2`, {
                 headers: {
                     ...headers,
                 },
-                searchParams: {
+                query: {
                     tribeId: id,
                     privacy: 1,
                     page: 1,
@@ -112,4 +114,4 @@ const getTribeSets = (id, limit, tryGet) =>
         false
     );
 
-export { baseUrl, getUserInfoFromUsername, getUserInfoFromId, getUserWorks, getTribeDetail, getTribeSets };
+export { baseUrl, getTribeDetail, getTribeSets, getUserInfoFromId, getUserInfoFromUsername, getUserWorks };
