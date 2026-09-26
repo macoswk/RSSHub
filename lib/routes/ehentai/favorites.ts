@@ -1,12 +1,19 @@
-import { Route } from '@/types';
+import ConfigNotFoundError from '@/errors/types/config-not-found';
+import type { Route } from '@/types';
 import cache from '@/utils/cache';
+
 import EhAPI from './ehapi';
 
 export const route: Route = {
     path: '/favorites/:favcat?/:order?/:page?/:routeParams?',
     categories: ['picture'],
-    example: '/ehentai/favorites/0/posted/1',
-    parameters: { favcat: 'Favorites folder number', order: '`posted`(Sort by gallery release time) , `favorited`(Sort by time added to favorites)', page: 'Page number', routeParams: 'Additional parameters, see the table above' },
+    example: '/ehentai/favorites/0/posted/0/bittorrent=true&embed_thumb=false',
+    parameters: {
+        favcat: 'Favorites folder number',
+        order: '`posted`(Sort by gallery release time) , `favorited`(Sort by time added to favorites)',
+        page: 'Page number, set 0 to get latest',
+        routeParams: 'Additional parameters, see the table above',
+    },
     features: {
         requireConfig: false,
         requirePuppeteer: false,
@@ -14,6 +21,7 @@ export const route: Route = {
         supportBT: true,
         supportPodcast: false,
         supportScihub: false,
+        nsfw: true,
     },
     name: 'Favorites',
     maintainers: ['yindaheng98', 'syrinka'],
@@ -22,7 +30,7 @@ export const route: Route = {
 
 async function handler(ctx) {
     if (!EhAPI.has_cookie) {
-        throw new Error('Ehentai favorites RSS is disabled due to the lack of <a href="https://docs.rsshub.app/deploy/config#route-specific-configurations">relevant config</a>');
+        throw new ConfigNotFoundError('Ehentai favorites RSS is disabled due to the lack of <a href="https://docs.rsshub.app/deploy/config#route-specific-configurations">relevant config</a>');
     }
     const favcat = ctx.req.param('favcat') ? Number.parseInt(ctx.req.param('favcat')) : 0;
     const page = ctx.req.param('page');
