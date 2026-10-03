@@ -1,7 +1,10 @@
-import { Route } from '@/types';
 import { load } from 'cheerio';
+
+import InvalidParameterError from '@/errors/types/invalid-parameter';
+import type { Route } from '@/types';
 import { parseDate } from '@/utils/parse-date';
 import timezone from '@/utils/timezone';
+
 import { getContent } from './utils';
 
 const map = new Map([
@@ -28,15 +31,15 @@ export const route: Route = {
     maintainers: ['jasongzy'],
     handler,
     description: `| 通知公告 | 新闻动态 |
-  | -------- | -------- |
-  | tzgg     | xwdt     |`,
+| -------- | -------- |
+| tzgg     | xwdt     |`,
 };
 
 async function handler(ctx) {
     const type = ctx.req.param('type') ?? 'tzgg';
     const info = map.get(type);
     if (!info) {
-        throw new Error('invalid type');
+        throw new InvalidParameterError('invalid type');
     }
     const id = info.id;
     const siteUrl = host + id + '/list.htm';
@@ -48,14 +51,10 @@ async function handler(ctx) {
     return {
         title: info.title,
         link: siteUrl,
-        item:
-            list &&
-            list
-                .map((index, item) => ({
-                    title: $(item).find('a').attr('title').trim(),
-                    pubDate: timezone(parseDate($(item).find('span').text(), 'YYYY-MM-DD'), +8),
-                    link: $(item).find('a').attr('href'),
-                }))
-                .get(),
+        item: list.toArray().map((item) => ({
+            title: $(item).find('a').attr('title')!.trim(),
+            pubDate: timezone(parseDate($(item).find('span').text(), 'YYYY-MM-DD'), 8),
+            link: $(item).find('a').attr('href'),
+        })),
     };
 }
