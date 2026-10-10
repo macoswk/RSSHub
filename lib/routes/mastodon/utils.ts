@@ -1,9 +1,10 @@
+import { config } from '@/config';
+import ConfigNotFoundError from '@/errors/types/config-not-found';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
 import { parseDate } from '@/utils/parse-date';
-import { config } from '@/config';
 
-const allowSiteList = ['mastodon.social', 'pawoo.net', config.mastodon.apiHost].filter(Boolean);
+const allowSiteList = ['mastodon.social', 'pawoo.net', 'fosstodon.org', config.mastodon.apiHost].filter(Boolean);
 
 const apiHeaders = (site) => {
     const { accessToken, apiHost } = config.mastodon;
@@ -39,8 +40,8 @@ const parseStatuses = (data) =>
         const accountRepostedBy = item.reblog ? item.account : null;
         item = item.reblog ?? item;
 
-        const content = item.content ? item.content.replaceAll(/<span.*?>|<\/span.*?>/gm, '') : '';
-        const contentRemovedHtml = content.replaceAll(/<(?:.|\n)*?>/gm, '\n');
+        const content = item.content ? item.content.replaceAll(/<span.*?>|<\/span.*?>/g, '') : '';
+        const contentRemovedHtml = content.replaceAll(/<(?:.|\n)*?>/g, '\n');
 
         const author = `${item.account.display_name} (@${item.account.acct})`;
         const link = item.url;
@@ -93,10 +94,10 @@ async function getAccountIdByAcct(acct) {
     const site = mastodonConfig.apiHost || acctHost;
     const acctDomain = mastodonConfig.acctDomain || acctHost;
     if (!(site && acctDomain)) {
-        throw new Error('Mastodon RSS is disabled due to the lack of <a href="https://docs.rsshub.app/deploy/config#route-specific-configurations">relevant config</a>');
+        throw new ConfigNotFoundError('Mastodon RSS is disabled due to the lack of <a href="https://docs.rsshub.app/deploy/config#route-specific-configurations">relevant config</a>');
     }
     if (!config.feature.allow_user_supply_unsafe_domain && !allowSiteList.includes(site)) {
-        throw new Error(`RSS for this domain is disabled unless 'ALLOW_USER_SUPPLY_UNSAFE_DOMAIN' is set to 'true' or 'MASTODON_API_HOST' is set.`);
+        throw new ConfigNotFoundError(`RSS for this domain is disabled unless 'ALLOW_USER_SUPPLY_UNSAFE_DOMAIN' is set to 'true' or 'MASTODON_API_HOST' is set.`);
     }
 
     const search_url = `https://${site}/api/v2/search`;

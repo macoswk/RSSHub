@@ -1,12 +1,16 @@
-import { Route } from '@/types';
-import { getCurrentPath } from '@/utils/helpers';
-const __dirname = getCurrentPath(import.meta.url);
-
-import got from '@/utils/got';
+import type { Route } from '@/types';
+import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
-import { art } from '@/utils/render';
-import * as path from 'node:path';
-import CryptoJS from 'crypto-js';
+import timezone from '@/utils/timezone';
+
+import { renderDescription } from './templates/description';
+
+const audio_types = {
+    m3u8: 'x-mpegURL',
+    mp3: 'mpeg',
+    mp4: 'mp4',
+    m4a: 'mp4',
+};
 
 export const route: Route = {
     path: '/album/:id',
@@ -26,110 +30,75 @@ export const route: Route = {
     handler,
     description: `如果订阅 [中国相声榜](https://www.radio.cn/pc-portal/sanji/detail.html?columnId=15682090498666)，其 URL 为 \`https://www.radio.cn/pc-portal/sanji/detail.html?columnId=15682090498666\`，可以得到 \`columnId\` 为 \`15682090498666\`
 
-  所以对应路由为 [\`/radio/album/15682090498666\`](https://rsshub.app/radio/album/15682090498666)
+所以对应路由为 [\`/radio/album/15682090498666\`](https://rsshub.app/radio/album/15682090498666)
 
-  :::tip
-  部分专辑不适用该路由，此时可以尝试 [节目](#yun-ting-jie-mu) 路由
-  :::`,
+::: tip
+部分专辑不适用该路由，此时可以尝试 [节目](#yun-ting-jie-mu) 路由
+:::`,
 };
 
 async function handler(ctx) {
-    const KEY = 'f0fc4c668392f9f9a447e48584c214ee';
-
     const id = ctx.req.param('id');
-    const size = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit')) : 100;
 
-    const rootUrl = 'https://www.radio.cn';
-    const apiRootUrl = 'https://ytmsout.radio.cn';
-    const detailRootUrl = 'https://ytapi.radio.cn';
+    const rootUrl = 'https://ytweb.radio.cn';
+    const currentUrl = `${rootUrl}/share/albumDetail?columnId=${id}`;
+    const apiRootUrl = 'https://ytapi.radio.cn';
 
-    const iconUrl = `${rootUrl}/pc-portal/image/icon_32.jpg`;
-    const currentUrl = `${rootUrl}/pc-portal/sanji/detail.html?columnId=${id}`;
-    const detailUrl = `${detailRootUrl}/ytsrv/srv/wifimusicbox/demand/detail`;
-
-    const detailResponse = await got({
-        method: 'post',
-        url: detailUrl,
-        form: {
+    const response = await ofetch(`${apiRootUrl}/ytsrv/srv/wifimusicbox/demand/detail`, {
+        method: 'POST',
+        headers: {
+            accept: 'application/json, text/plain, */*',
+            'content-type': 'application/x-www-form-urlencoded',
+            equipmentSource: 'WEB', // only this header is mandatory
+            equipmentType: '3',
+            platformCode: 'H5',
+            productId: '1605403829833195520',
+            providerCode: '25010',
+            referer: 'https://ytweb.radio.cn/',
+            timestamp: String(Date.now()),
+            version: '4.0.0',
+        },
+        body: new URLSearchParams({
             pageIndex: '0',
-            sortType: '2',
+            sortType: '',
             mobileId: '',
             providerCode: '25010',
             pid: id,
             paySongFlag: '1',
             richText: '1',
             h5flag: '1',
-        },
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            version: '4.0.0',
-            providerCode: '25010',
-            equipmentSource: 'WEB',
-        },
+        }),
+        parseResponse: JSON.parse,
     });
 
-    const data = detailResponse.data;
+    const items = response.con.map((item) => {
+        let enclosure_url = item.playUrlHigh ?? item.playUrlMedium ?? item.playUrlLow ?? item.playUrl;
+        enclosure_url = enclosure_url.endsWith('.m3u8') ? item.downloadUrl : enclosure_url;
 
-    const count = data.count;
-
-    let pageNo = 1,
-        pageSize = count - size;
-
-    if (pageSize <= 0) {
-        pageNo = 0;
-        pageSize = count;
-    }
-
-    const params = `albumId=${id}&pageNo=${pageNo}&pageSize=${pageSize}`;
-    const apiUrl = `${apiRootUrl}/web/appSingle/pageByAlbum?${params}`;
-
-    const timestamp = Date.now();
-    const sign = CryptoJS.MD5(`${params}&timestamp=${timestamp}&key=${KEY}`).toString().toUpperCase();
-
-    const response = await got({
-        method: 'get',
-        url: apiUrl,
-        headers: {
-            sign,
-            timestamp,
-            'Content-Type': 'application/json',
-            equipmentId: '0000',
-            platformCode: 'WEB',
-        },
-    });
-
-    const items = response.data.data.data.map((item) => {
-        let enclosure_url = item.playUrlHigh ?? item.playUrlLow;
-        enclosure_url = /\.m3u8$/.test(enclosure_url) ? item.downloadUrl : enclosure_url;
-
-        const enclosure_type = `audio/${enclosure_url.match(/\.(\w+)$/)[1]}`;
+        const fileExt = new URL(enclosure_url).pathname.split('.').pop();
+        const enclosure_type = fileExt ? `audio/${audio_types[fileExt]}` : '';
 
         return {
             guid: item.id,
             title: item.name,
-            link: enclosure_url,
-            description: art(path.join(__dirname, 'templates/description.art'), {
-                description: item.des,
-                enclosure_url,
-                enclosure_type,
-            }),
-            author: data.anchorpersons,
-            pubDate: parseDate(item.publishTime),
+            link: `${rootUrl}/share/albumPlay?correlateId=${item.id}&columnId=${id}`,
+            description: renderDescription({ enclosure_url, enclosure_type }),
+            pubDate: timezone(parseDate(item.createTime), 8),
             enclosure_url,
             enclosure_type,
             enclosure_length: item.fileSize,
             itunes_duration: item.duration,
-            itunes_item_image: iconUrl,
+            itunes_item_image: item.logoUrl,
         };
     });
 
     return {
-        title: `云听 - ${data.columnName}`,
+        title: `云听 - ${response.columnName}`,
         link: currentUrl,
         item: items,
-        image: iconUrl,
-        itunes_author: data.anchorpersons,
-        description: data.descriptions ?? data.descriptionSimple,
-        itunes_category: data.atypeInfo.map((c) => c.categoryName).join(','),
+        image: response.posterInfo.imgUrl,
+        logo: response.logoUrl,
+        description: response.descriptions ?? response.descriptionSimple,
+        itunes_author: response.ownerNickName || 'radio.cn',
     };
 }

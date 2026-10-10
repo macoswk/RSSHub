@@ -7,17 +7,17 @@ async function graphqlRequest(body, cookie) {
             accept: '*/*',
             'accept-language': 'en-US,en;q=0.9,zh;q=0.8,zh-CN;q=0.7',
             'apollographql-client-name': 'lite',
-            'apollographql-client-version': 'main-20230505-195233-209f54c418',
+            'apollographql-client-version': 'main-20240329-011934-2370d8b72b',
             'cache-control': 'no-cache',
             'content-type': 'application/json',
-            'medium-frontend-app': 'lite/main-20230505-195233-209f54c418',
+            'medium-frontend-app': 'lite/main-20240329-011934-2370d8b72b',
             'medium-frontend-path': '/',
             'medium-frontend-route': 'homepage',
             'ot-tracer-sampled': 'true',
-            'ot-tracer-spanid': '2db0b0d7263ffad8',
-            'ot-tracer-traceid': '679eb621b33147c4',
+            'ot-tracer-spanid': '26b843316dc9494d',
+            'ot-tracer-traceid': 'c84ea9154765033',
             pragma: 'no-cache',
-            'sec-ch-ua': '"Chromium";v="113", "Not-A.Brand";v="24"',
+            'sec-ch-ua': '"Chromium";v="123", "Not:A-Brand";v="8"',
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"macOS"',
             'sec-fetch-dest': 'empty',
@@ -26,7 +26,7 @@ async function graphqlRequest(body, cookie) {
             'graphql-operation': body.operationName,
             cookie,
         },
-        data: JSON.stringify([body]),
+        body: JSON.stringify([body]),
     });
     return data[0].data;
 }
@@ -47,79 +47,83 @@ async function getUserCatalogMainContentQuery(user, catalogId, cookie, pagingLim
     return (await graphqlRequest(newUserCatalogMainContentQuery(catalogId, pagingLimit), cookie))?.catalogById;
 }
 
-export { getWebInlineRecommendedFeedQuery, getFollowingFeedQuery, getWebInlineTopicFeedQuery, getUserCatalogMainContentQuery };
+export { getFollowingFeedQuery, getUserCatalogMainContentQuery, getWebInlineRecommendedFeedQuery, getWebInlineTopicFeedQuery };
 
 function newFollowingFeedQuery(pagingLimit = 5) {
     return {
-        operationName: 'FollowingFeedQuery',
+        operationName: 'LegacyFollowingFeedQuery',
         variables: {
             paging: {
                 limit: pagingLimit,
             },
         },
-        query: `query FollowingFeedQuery($paging: PagingOptions) {
-            followingFeed(paging: $paging) {
-              items {
-                feedId
-                post {
-                  mediumUrl
-                  __typename
+        query: /* GraphQL */ `
+            query LegacyFollowingFeedQuery($paging: PagingOptions) {
+                followingFeed(paging: $paging) {
+                    items {
+                        feedId
+                        post {
+                            mediumUrl
+                            __typename
+                        }
+                        __typename
+                    }
+                    pagingInfo {
+                        next {
+                            to
+                            from
+                            limit
+                            source
+                            __typename
+                        }
+                        __typename
+                    }
+                    __typename
                 }
-                __typename
-              }
-              pagingInfo {
-                next {
-                  to
-                  from
-                  limit
-                  source
-                  __typename
-                }
-                __typename
-              }
-              __typename
             }
-        }`,
+        `,
     };
 }
 
 function newWebInlineRecommendedFeedQuery(pagingLimit = 5) {
     return {
-        operationName: 'WebInlineRecommendedFeedQuery',
+        operationName: 'LegacyWebInlineRecommendedFeedQuery',
         variables: {
             forceRank: true,
             paging: {
                 limit: pagingLimit,
             },
         },
-        query: `query WebInlineRecommendedFeedQuery($paging: PagingOptions, $forceRank: Boolean) {
-            webRecommendedFeed(paging: $paging, forceRank: $forceRank) {
-              items {
-                feedId
-                post {
-                  mediumUrl
-                  __typename
+        query: /* GraphQL */ `
+            query LegacyWebInlineRecommendedFeedQuery($paging: PagingOptions, $forceRank: Boolean) {
+                webRecommendedFeed(paging: $paging, forceRank: $forceRank) {
+                    items {
+                        feedId
+                        post {
+                            mediumUrl
+                            __typename
+                        }
+                        __typename
+                    }
+                    pagingInfo {
+                        next {
+                            limit
+                            to
+                            source
+                            __typename
+                        }
+                        __typename
+                    }
+                    __typename
                 }
-                __typename
-              }
-              pagingInfo {
-                next {
-                  limit
-                  to
-                  source
-                  __typename
-                }
-                __typename
-              }
-              __typename
             }
-        }`,
+        `,
     };
 }
 
 function newWebInlineTopicFeedQuery(tagSlug, pagingLimit = 5) {
     return {
-        operationName: 'WebInlineTopicFeedQuery',
+        operationName: 'LegacyWebInlineTopicFeedQuery',
         variables: {
             tagSlug,
             paging: {
@@ -127,29 +131,31 @@ function newWebInlineTopicFeedQuery(tagSlug, pagingLimit = 5) {
             },
             skipCache: true,
         },
-        query: `query WebInlineTopicFeedQuery($tagSlug: String!, $paging: PagingOptions!, $skipCache: Boolean) {
-            personalisedTagFeed(tagSlug: $tagSlug, paging: $paging, skipCache: $skipCache) {
-              items {
-                feedId
-                post {
-                  mediumUrl
-                  __typename
+        query: /* GraphQL */ `
+            query LegacyWebInlineTopicFeedQuery($tagSlug: String!, $paging: PagingOptions!, $skipCache: Boolean) {
+                personalisedTagFeed(tagSlug: $tagSlug, paging: $paging, skipCache: $skipCache) {
+                    items {
+                        feedId
+                        post {
+                            mediumUrl
+                            __typename
+                        }
+                        __typename
+                    }
+                    pagingInfo {
+                        next {
+                            source
+                            limit
+                            from
+                            to
+                            __typename
+                        }
+                        __typename
+                    }
+                    __typename
                 }
-                __typename
-              }
-              pagingInfo {
-                next {
-                  source
-                  limit
-                  from
-                  to
-                  __typename
-                }
-                __typename
-              }
-              __typename
             }
-        }`,
+        `,
     };
 }
 
@@ -162,24 +168,26 @@ function newUserCatalogMainContentQuery(catalogId, pagingLimit = 20) {
                 limit: pagingLimit,
             },
         },
-        query: `query UserCatalogMainContentQuery($catalogId: ID!, $pagingOptions: CatalogPagingOptionsInput!) {
-            catalogById(catalogId: $catalogId) {
-              __typename
-              ... on Catalog {
-                name
-                itemsConnection(pagingOptions: $pagingOptions) {
-                  items {
-                    entity {
-                      ... on Post {
-                        mediumUrl
-                      }
-                    }
+        query: /* GraphQL */ `
+            query UserCatalogMainContentQuery($catalogId: ID!, $pagingOptions: CatalogPagingOptionsInput!) {
+                catalogById(catalogId: $catalogId) {
                     __typename
-                  }
-                  __typename
+                    ... on Catalog {
+                        name
+                        itemsConnection(pagingOptions: $pagingOptions) {
+                            items {
+                                entity {
+                                    ... on Post {
+                                        mediumUrl
+                                    }
+                                }
+                                __typename
+                            }
+                            __typename
+                        }
+                    }
                 }
-              }
             }
-          }`,
+        `,
     };
 }
